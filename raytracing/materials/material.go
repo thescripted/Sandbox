@@ -84,7 +84,6 @@ func (d Dielectric) Scatter(rayIn geom.Ray, record hitables.HitRecord) (scattere
 	return scattered, attenuation, true
 }
 
-
 func Reflect(v, n geom.Vec3) geom.Vec3 {
 	return v.Sub(n.Scale(2 * n.Dot(v)))
 }
@@ -92,7 +91,7 @@ func Reflect(v, n geom.Vec3) geom.Vec3 {
 func Refract(v, n geom.Vec3, ni_over_nt float64) (geom.Vec3, bool) {
 	uv := v.Unit()
 	dt := uv.Dot(n)
-	discriminant := 1.0 - ni_over_nt*ni_over_nt*(1 - dt*dt)
+	discriminant := 1.0 - ni_over_nt*ni_over_nt*(1-dt*dt)
 	if discriminant > 0 {
 		firstpart := uv.Sub(n.Scale(dt))
 		firstpart = firstpart.Scale(ni_over_nt)
@@ -116,6 +115,6 @@ func RandInUnitSphere() geom.Vec3 {
 
 func schlick(cosine, refIdx float64) float64 {
 	r0 := (1 - refIdx) / (1 + refIdx)
-	r0 = r0*r0
-	return r0 + (1 - r0)*math.Pow(1 - cosine, 5)
+	r0 = r0 * r0
+	return r0 + (1-r0)*math.Pow(1-cosine, 5)
 }

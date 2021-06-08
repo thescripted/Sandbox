@@ -1,3 +1,5 @@
+// TODO: Add preamble
+
 package main
 
 import (
@@ -11,52 +13,54 @@ import (
 	"math/rand"
 )
 
-func color(r geom.Ray, world hitables.Hitable, depth int) geom.Vec3 {
-	if  record, ok := world.Hit(r, 0.001, 1000); ok {
-		scattered, attenuation, ok := record.Material.Scatter(r, record)
-		if depth < 50 && ok {
-			return attenuation.Times(color(scattered, world, depth+1))
-		} else {
-			return geom.Vec3{0,0,0}
-		}
-	}
-	unitDir := r.Direction().Unit()
-	t := 0.5*(unitDir.Y() + 1)
-	return geom.Vec3{1, 1, 1}.Scale(1 - t).Add(geom.Vec3{0.5, 0.7, 1}.Scale(t))
-
-}
-
 func main() {
 	const (
-		nx = 1200
-		ny = 800
-		ns = 15
-	)
-	fmt.Printf(
-		"P3\n"+
-			"%d %d\n"+
-			"255\n", nx, ny,
+		width    = 1200
+		height   = 800
+		aliasing = 15
 	)
 
-	lookFrom := geom.Vec3{13,2,3}
-	lookAt := geom.Vec3{0,0,0}
-	distToFocus := 10.0
-	aperture := 0.1
+	// Camera Init
+	var (
+		lookFrom    = geom.Vec3{13, 2, 3}
+		lookAt      = geom.Vec3{0, 0, 0}
+		verticalUp  = geom.Vec3{0, 1, 0}
+		distToFocus = 10.0
+		aperture    = 0.1
+		fieldOfView = 20.0
+		aspect      = float64(width) / float64(height)
+	)
 
-	cam := camera.New(lookFrom, lookAt, geom.Vec3{0,1,0}, 20, float64(nx)/float64(ny), aperture, distToFocus)
+	cam := camera.New(
+		lookFrom,
+		lookAt,
+		verticalUp,
+		fieldOfView,
+		aspect,
+		aperture,
+		distToFocus,
+	)
 
 	world := generate()
 
-	for j := ny - 1; j >= 0; j-- {
-		for i := 0; i < nx; i++ {
+	// Header for PPM file
+	fmt.Printf(
+		"P3\n"+
+			"%d %d\n"+
+			"255\n", width, height,
+	)
+
+	// Ray Casting
+	for j := height - 1; j >= 0; j-- {
+		for i := 0; i < width; i++ {
 			col := geom.Vec3{0, 0, 0}
-			for s := 0; s < ns; s++ {
-				u := (float64(i) + rand.Float64()) / float64(nx)
-				v := (float64(j) + rand.Float64()) / float64(ny)
+			for s := 0; s < aliasing; s++ {
+				u := (float64(i) + rand.Float64()) / float64(width)
+				v := (float64(j) + rand.Float64()) / float64(height)
 				getRay := cam.GetRay(u, v)
 				col = col.Add(color(getRay, world, 0))
 			}
-			col = col.Scale(1.0 / float64(ns))
+			col = col.Scale(1.0 / float64(aliasing))
 			col = geom.Vec3{math.Sqrt(col.X()), math.Sqrt(col.Y()), math.Sqrt(col.Z())}
 			ir := int(255.99 * col.X())
 			ig := int(255.99 * col.Y())
@@ -65,6 +69,21 @@ func main() {
 
 		}
 	}
+}
+
+func color(r geom.Ray, world hitables.Hitable, depth int) geom.Vec3 {
+	if record, ok := world.Hit(r, 0.001, 1000); ok {
+		scattered, attenuation, ok := record.Material.Scatter(r, record)
+		if depth < 50 && ok {
+			return attenuation.Times(color(scattered, world, depth+1))
+		} else {
+			return geom.Vec3{0, 0, 0}
+		}
+	}
+	unitDir := r.Direction().Unit()
+	t := 0.5 * (unitDir.Y() + 1)
+	return geom.Vec3{1, 1, 1}.Scale(1 - t).Add(geom.Vec3{0.5, 0.7, 1}.Scale(t))
+
 }
 
 func generate() hitables.Objects {

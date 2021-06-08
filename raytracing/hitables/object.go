@@ -17,4 +17,3 @@ func (o Objects) Hit(ray geom.Ray, tMin, tMax float64) (HitRecord, bool) {
 	}
 	return globalRecord, isHit
 }
-

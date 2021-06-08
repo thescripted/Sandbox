@@ -37,19 +37,19 @@ func (v Vec3) Scale(s float64) Vec3 {
 }
 
 func (v Vec3) Dot(v2 Vec3) float64 {
-	return v[0] * v2[0] + v[1] * v2[1] + v[2] * v2[2]
+	return v[0]*v2[0] + v[1]*v2[1] + v[2]*v2[2]
 }
 
 func (v Vec3) Cross(v2 Vec3) Vec3 {
 	return Vec3{
-		v[1] * v2[2] - v[2] * v2[1],
-		-(v[0] * v2[2] - v[2] * v2[0]),
-		v[0] * v2[1] - v[1] * v2[0],
+		v[1]*v2[2] - v[2]*v2[1],
+		-(v[0]*v2[2] - v[2]*v2[0]),
+		v[0]*v2[1] - v[1]*v2[0],
 	}
 }
 
 func (v Vec3) Len() float64 {
-	return math.Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+	return math.Sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
 }
 
 func (v Vec3) LenSq() float64 {

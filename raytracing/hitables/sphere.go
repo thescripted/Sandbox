@@ -22,7 +22,7 @@ func (s Sphere) Hit(ray geom.Ray, tMin, tMax float64) (HitRecord, bool) {
 
 	record := HitRecord{}
 	if discriminant > 0 {
-		root := (-b - math.Sqrt(discriminant))/(2*a)
+		root := (-b - math.Sqrt(discriminant)) / (2 * a)
 		if root < tMax && root > tMin {
 			record.t = root
 			record.Point = ray.PointAtParameter(record.t)
@@ -31,7 +31,7 @@ func (s Sphere) Hit(ray geom.Ray, tMin, tMax float64) (HitRecord, bool) {
 			return record, true
 		}
 
-		root = (-b + math.Sqrt(discriminant))/(2*a)
+		root = (-b + math.Sqrt(discriminant)) / (2 * a)
 		if root < tMax && root > tMin {
 			record.t = root
 			record.Point = ray.PointAtParameter(record.t)
