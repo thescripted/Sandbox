@@ -2,179 +2,62 @@ package main
 
 import (
 	"fmt"
+	"github.com/thescripted/sandbox-raytracing/camera"
+	"github.com/thescripted/sandbox-raytracing/geom"
+	"github.com/thescripted/sandbox-raytracing/hitables"
+	"github.com/thescripted/sandbox-raytracing/materials"
+
 	"math"
 	"math/rand"
-
-	"github.com/thescripted/sandbox-raytracing/vector"
-	"github.com/thescripted/sandbox-raytracing/ray"
 )
 
-
-type Material interface {
-	Scatter(ray ray.Ray, record HitRecord) (scattered ray.Ray, attenuation vector.Vec3, ok bool)
-}
-
-// Hitable is an interface for all objects that must react to rays.
-type Hitable interface {
-	Hit(ray ray.Ray, tMin, tMax float64) (HitRecord, bool)
-}
-
-type Objects []Sphere
-
-type Metal struct {
-	albedo vector.Vec3
-}
-
-type Lambertian struct {
-	albedo vector.Vec3
-}
-
-type Camera struct {
-	origin vector.Vec3
-	lowerLeftCorner vector.Vec3
-	horizontal vector.Vec3
-	vertical vector.Vec3
-}
-
-// HitRecord contains recorded information about where an object was hit.
-type HitRecord struct {
-	t float64
-	point vector.Vec3
-	Normal vector.Vec3
-	Material Material
-}
-
-// A Sphere is a spherical Hitable.
-type Sphere struct {
-	center vector.Vec3
-	radius float64
-	material Material
-}
-
-func (m Metal) Scatter(rayIn ray.Ray, record HitRecord) (scattered ray.Ray, attenuation vector.Vec3, ok bool) {
-	reflected := Reflect(rayIn.Direction().Unit(), record.Normal)
-	scattered = ray.Ray{
-		A: record.point,
-		B: reflected,
-	}
-	attenuation = m.albedo
-	if scattered.Direction().Dot(record.Normal) > 0 {
-		return scattered, attenuation, true
-	}
-	return ray.Ray{}, vector.Vec3{}, false
-}
-
-func (l Lambertian) Scatter(rayIn ray.Ray, record HitRecord) (scattered ray.Ray, attenuation vector.Vec3, ok bool) {
-	target := record.point.Add(record.Normal).Add(RandInUnitSphere())
-	scattered = ray.Ray{
-		A: record.point,
-		B: target.Sub(record.point),
-	}
-	attenuation = l.albedo
-	return scattered, attenuation, true
-}
-
-func (s Sphere) Hit(ray ray.Ray, tMin, tMax float64) (HitRecord, bool) {
-	oc := ray.Origin().Sub(s.center)
-	a := ray.Direction().Dot(ray.Direction())
-	b := 2.0 * oc.Dot(ray.Direction())
-	c := oc.Dot(oc) - s.radius*s.radius
-	discriminant := b*b - 4*a*c
-
-	record := HitRecord{}
-	if discriminant > 0 {
-		root := (-b - math.Sqrt(discriminant))/(2*a)
-		if root < tMax && root > tMin {
-			record.t = root
-			record.point = ray.PointAtParameter(record.t)
-			record.Normal = record.point.Sub(s.center).Scale(1 / s.radius)
-			record.Material = s.material
-			return record, true
-		}
-
-		root = (-b + math.Sqrt(discriminant))/(2*a)
-		if root < tMax && root > tMin {
-			record.t = root
-			record.point = ray.PointAtParameter(record.t)
-			record.Normal = record.point.Sub(s.center).Scale(1 / s.radius)
-			record.Material = s.material
-			return record, true
-		}
-	}
-	return record, false
-}
-
-func (o Objects) Hit(ray ray.Ray, tMin, tMax float64) (HitRecord, bool) {
-	isHit := false
-	globalRecord := HitRecord{}
-	closest := tMax
-	for _, sphere := range o {
-		if record, ok := sphere.Hit(ray, tMin, closest); ok {
-			isHit = true
-			closest = record.t
-			globalRecord = record
-		}
-	}
-	return globalRecord, isHit
-}
-
-func (c Camera) GetRay(u, v float64) ray.Ray {
-	return ray.Ray{
-		A: c.origin,
-		B: c.lowerLeftCorner.Add(c.horizontal.Scale(u)).Add(c.vertical.Scale(v)),
-	}
-}
-
-func color(r ray.Ray, world Hitable, depth int) vector.Vec3 {
+func color(r geom.Ray, world hitables.Hitable, depth int) geom.Vec3 {
 	if  record, ok := world.Hit(r, 0.001, 1000); ok {
 		scattered, attenuation, ok := record.Material.Scatter(r, record)
 		if depth < 50 && ok {
 			return attenuation.Times(color(scattered, world, depth+1))
 		} else {
-			return vector.Vec3{0,0,0}
+			return geom.Vec3{0,0,0}
 		}
 	}
 	unitDir := r.Direction().Unit()
 	t := 0.5*(unitDir.Y() + 1)
-	return vector.Vec3{1, 1, 1}.Scale(1 - t).Add(vector.Vec3{0.5, 0.7, 1}.Scale(t))
+	return geom.Vec3{1, 1, 1}.Scale(1 - t).Add(geom.Vec3{0.5, 0.7, 1}.Scale(t))
 
 }
 
 func main() {
-	nx := 600
-	ny := 300
-	ns := 200
+	const (
+		nx = 1200
+		ny = 800
+		ns = 15
+	)
 	fmt.Printf(
 		"P3\n"+
 			"%d %d\n"+
 			"255\n", nx, ny,
 	)
 
-	camera := Camera{
-		vector.Vec3{0, 0, 0},
-		vector.Vec3{-2, -1, -1},
-		vector.Vec3{4, 0, 0},
-		vector.Vec3{0, 2, 0},
-	}
+	lookFrom := geom.Vec3{13,2,3}
+	lookAt := geom.Vec3{0,0,0}
+	distToFocus := 10.0
+	aperture := 0.1
 
-	world := Objects{
-		Sphere{center: vector.Vec3{0,0,-1}, radius: 0.35, material: Lambertian{vector.Vec3{0.8, 0.3, 0.3}}},
-		Sphere{center: vector.Vec3{0,-25.5,-1}, radius: 25,  material: Lambertian{vector.Vec3{0.8, 0.8, 0.0}}},
-		Sphere{center: vector.Vec3{1,0,-1}, radius: 0.5, material: Metal{vector.Vec3{0.8, 0.6, 0.2}}},
-		Sphere{center: vector.Vec3{-1,0,-1}, radius: 0.5, material: Metal{vector.Vec3{0.8, 0.8, 0.8}}},
-	}
+	cam := camera.New(lookFrom, lookAt, geom.Vec3{0,1,0}, 20, float64(nx)/float64(ny), aperture, distToFocus)
+
+	world := generate()
 
 	for j := ny - 1; j >= 0; j-- {
 		for i := 0; i < nx; i++ {
-			col := vector.Vec3{0,0,0}
+			col := geom.Vec3{0, 0, 0}
 			for s := 0; s < ns; s++ {
-				u := (float64(i)) / float64(nx)
-				v := (float64(j)) / float64(ny)
-				ray := camera.GetRay(u, v)
-				col = col.Add(color(ray, world, 0))
+				u := (float64(i) + rand.Float64()) / float64(nx)
+				v := (float64(j) + rand.Float64()) / float64(ny)
+				getRay := cam.GetRay(u, v)
+				col = col.Add(color(getRay, world, 0))
 			}
-			col = col.Scale(1.0/float64(ns))
-			col = vector.Vec3{math.Sqrt(col.X()), math.Sqrt(col.Y()), math.Sqrt(col.Z())}
+			col = col.Scale(1.0 / float64(ns))
+			col = geom.Vec3{math.Sqrt(col.X()), math.Sqrt(col.Y()), math.Sqrt(col.Z())}
 			ir := int(255.99 * col.X())
 			ig := int(255.99 * col.Y())
 			ib := int(255.99 * col.Z())
@@ -184,17 +67,67 @@ func main() {
 	}
 }
 
-func RandInUnitSphere() vector.Vec3 {
-	var p vector.Vec3
-	for {
-		p = vector.Vec3{rand.Float64(), rand.Float64(), rand.Float64()}.Scale(2).Sub(vector.Vec3{1, 1, 1})
-		if p.LenSq() < 1 {
-			break
+func generate() hitables.Objects {
+	world := hitables.Objects{
+		hitables.Sphere{
+			Center:   geom.Vec3{0, -1000, 0},
+			Radius:   1000,
+			Material: materials.Lambertian{Albedo: geom.Vec3{0.5, 0.5, 0.5}},
+		},
+		hitables.Sphere{
+			Center:   geom.Vec3{0, 1, 0},
+			Radius:   1.0,
+			Material: materials.Dielectric{RefIdx: 1.5},
+		},
+		hitables.Sphere{
+			Center:   geom.Vec3{-4, 1, 0},
+			Radius:   1.0,
+			Material: materials.Lambertian{Albedo: geom.Vec3{0.4, 0.2, 0.1}},
+		},
+		hitables.Sphere{
+			Center:   geom.Vec3{4, 1, 0},
+			Radius:   1.0,
+			Material: materials.Metal{Albedo: geom.Vec3{0.7, 0.65, 0.5}},
+		},
+	}
+
+	for a := -11; a < 11; a++ {
+		for b := -11; b < 11; b++ {
+			chooseMat := rand.Float64()
+			center := geom.Vec3{float64(a) + 0.9*rand.Float64(), 0.2, float64(b) + 0.9*rand.Float64()}
+			if center.Sub(geom.Vec3{4, 0.2, 0}).Len() > 0.9 {
+				if chooseMat < 0.8 { // Matte
+					world = append(world, hitables.Sphere{
+						Center: center,
+						Radius: 0.2,
+						Material: materials.Lambertian{Albedo: geom.Vec3{
+							rand.Float64() * rand.Float64(),
+							rand.Float64() * rand.Float64(),
+							rand.Float64() * rand.Float64(),
+						}},
+					})
+				} else if chooseMat < 0.95 { // Metal
+					world = append(world, hitables.Sphere{
+						Center: center,
+						Radius: 0.2,
+						Material: materials.Metal{
+							Albedo: geom.Vec3{
+								0.5 * (1 + rand.Float64()),
+								0.5 * (1 + rand.Float64()),
+								0.5 * (1 + rand.Float64()),
+							},
+							Fuzz: 0.5 * rand.Float64(),
+						},
+					})
+				} else { // Glass
+					world = append(world, hitables.Sphere{
+						Center:   center,
+						Radius:   0.2,
+						Material: materials.Dielectric{RefIdx: 1.5},
+					})
+				}
+			}
 		}
 	}
-	return p
-}
-
-func Reflect(v, n vector.Vec3) vector.Vec3 {
-	return v.Sub(n.Scale(2 * n.Dot(v)))
+	return world
 }
